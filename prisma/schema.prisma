@@ -1,0 +1,110 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  THEORY
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(STUDENT)
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attempts  QuizAttempt[]
+  badges    UserBadge[]
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "GET 205"
+  title       String
+  description String?
+  topics      Topic[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Topic {
+  id        String     @id @default(uuid())
+  name      String
+  courseId  String
+  course    Course     @relation(fields: [courseId], references: [id])
+  questions Question[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Question {
+  id          String       @id @default(uuid())
+  content     String       // The question text (can be markdown/html)
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  difficulty  Int          @default(1) // 1-5 scale
+  topicId     String
+  topic       Topic        @relation(fields: [topicId], references: [id])
+
+  options     Option[]
+  explanation Explanation?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Option {
+  id         String   @id @default(uuid())
+  content    String
+  isCorrect  Boolean  @default(false)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Explanation {
+  id         String   @id @default(uuid())
+  content    String   // Detailed explanation text
+  questionId String   @unique
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  score          Int      // Score achieved in this attempt
+  totalQuestions Int
+  correctAnswers Int
+  completedAt    DateTime @default(now())
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String
+  iconUrl     String?
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt  DateTime @default(now())
+
+  @@id([userId, badgeId])
+}
