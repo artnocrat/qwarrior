@@ -17,28 +17,72 @@ enum QuestionType {
   THEORY
 }
 
+enum QuestionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum IngestionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique // e.g. "EEG"
+  courses   Course[]
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Level {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g. "100 Level"
+  value     Int      @unique // e.g. 100
+  courses   Course[]
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   name      String?
   role      Role     @default(STUDENT)
   xp        Int      @default(0)
-  level     Int      @default(1)
+  gameLevel Int      @default(1) // Renamed from level to avoid conflict
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  attempts  QuizAttempt[]
-  badges    UserBadge[]
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  academicLevelId String?
+  academicLevel   Level?      @relation(fields: [academicLevelId], references: [id])
+
+  attempts      QuizAttempt[]
+  badges        UserBadge[]
+  ingestionJobs IngestionJob[]
 }
 
 model Course {
-  id          String   @id @default(uuid())
-  code        String   @unique // e.g. "GET 205"
-  title       String
-  description String?
-  topics      Topic[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String     @id @default(uuid())
+  code         String     @unique // e.g. "GET 205"
+  title        String
+  description  String?
+  semester     Int        @default(1)
+  topics       Topic[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  levelId      String
+  level        Level      @relation(fields: [levelId], references: [id])
 }
 
 model Topic {
@@ -52,18 +96,21 @@ model Topic {
 }
 
 model Question {
-  id          String       @id @default(uuid())
-  content     String       // The question text (can be markdown/html)
-  type        QuestionType @default(MULTIPLE_CHOICE)
-  difficulty  Int          @default(1) // 1-5 scale
-  topicId     String
-  topic       Topic        @relation(fields: [topicId], references: [id])
+  id             String          @id @default(uuid())
+  content        String          // The question text (can be markdown/html)
+  type           QuestionType    @default(MULTIPLE_CHOICE)
+  difficulty     Int             @default(1) // 1-5 scale
+  topicId        String
+  topic          Topic           @relation(fields: [topicId], references: [id])
+  status         QuestionStatus  @default(DRAFT)
+  ingestionJobId String?
+  ingestionJob   IngestionJob?   @relation(fields: [ingestionJobId], references: [id])
 
   options     Option[]
   explanation Explanation?
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Option {
@@ -100,11 +147,23 @@ model Badge {
 }
 
 model UserBadge {
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  badgeId   String
-  badge     Badge    @relation(fields: [badgeId], references: [id])
-  earnedAt  DateTime @default(now())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
 
   @@id([userId, badgeId])
+}
+
+model IngestionJob {
+  id        String          @id @default(uuid())
+  fileUrl   String
+  fileType  String          // PDF, IMAGE, DOCX
+  status    IngestionStatus @default(PENDING)
+  adminId   String
+  admin     User            @relation(fields: [adminId], references: [id])
+  questions Question[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 }
